@@ -19,8 +19,8 @@ def getIpAndPort():
         msgFromServer = msgFromServer[0]
         if len(msgFromServer) >= 7:
             if msgFromServer[0:4] == 0xabcddcba:
-                if msgFromServer[5] == 2:
-                    return serverIp, msgFromServer[6:8]
+                if msgFromServer[4] == 2:
+                    return serverIp, msgFromServer[5:7]
 def connectByTCP(ipAndPort):
     TCPSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     print("Received offer from " + ipAndPort[0] + ", attempting to connect...")

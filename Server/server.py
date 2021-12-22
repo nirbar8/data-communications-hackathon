@@ -2,28 +2,46 @@ from scapy.all import *
 from time import sleep
 import socket
 import os
+import threading
 
 TESTING_MODE = False                # For Testing, switch to True
 
 TIME_TO_SLEEP_BETWEEN_OFFERS = 1    # in seconds
 MAX_CLIENTS = 2
 UDP_PORT = 13117
+SECRET_COOKIE = 0xabcddcba
+BROADCAST_IP = "255.255.255.255"
+
 
 def get_src_ip():
-    network_name = 'eth2' if TESTING_MODE else 'eth2'   
+    network_name = 'eth2' if TESTING_MODE else 'eth1'   
     if network_name in get_if_list():
-        return get_if_addr(network_name)        #TODO: remove comment when testing
+        return get_if_addr(network_name)
     else:
         raise RuntimeError(f"Network {network_name} not exist.")
         
 
 
-def send_game_offer(port):
-    packet = "\xab\xcd\xdc\xba" + "\x02" + str(chr(port)) 
-    send(IP(dst="255.255.255.255")/UDP(dport=UDP_PORT)/Raw(load=packet))
+# def get_game_offer():
+#     udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+#     udp_sock.bind(("127.0.0.1", UDP_PORT))
+#     print(udp_sock.recvfrom(1024))
+    
 
+
+def send_game_offer(port):
+    packet = SECRET_COOKIE.to_bytes(4, byteorder='big') + \
+            (0x02).to_bytes(2, byteorder='big') + \
+            port.to_bytes(2, byteorder='big') 
+    udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    udp_sock.sendto(packet, (BROADCAST_IP, UDP_PORT))
 
 def main():
+    #while True:
+        # tcp_connections = wait_for_clients()
+        # play_game(tcp_connections)
+
     try:
         src_ip = get_src_ip()
         while True:

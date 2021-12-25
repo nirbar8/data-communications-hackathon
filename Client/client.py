@@ -10,13 +10,22 @@ Listen for udp broadcasts and return the required information for the TCP connec
 
 server_socket = None
 
+spamming_teams = ['172.18.0.102', '172.99.0.40'] # TODO: delete
+
 def getIpAndPort():
     while True:
         UDPSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         #UDPSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         UDPSocket.bind(('', udpPort))
         print("Client started, listening for offer requests...")
+        
         msgFromServer = UDPSocket.recvfrom(bufferSize)
+         # TODO: delete
+        while (msgFromServer[1][0] in spamming_teams):
+            msgFromServer = UDPSocket.recvfrom(bufferSize)
+            
+
+        print(msgFromServer)
         serverIp = msgFromServer[1]
         msgFromServer = msgFromServer[0]
         if len(msgFromServer) >= 7:

@@ -35,6 +35,7 @@ class Server:
         while True:
             if self.game_mode == GameMode.WAITING_FOR_CLIENTS:
                 udp_sock.sendto(packet, (BROADCAST_IP, UDP_PORT))
+                print("sending broadcast")                          # TODO: for debug, delete
             time.sleep(TIME_TO_SLEEP_BETWEEN_OFFERS)
 
 
@@ -48,7 +49,7 @@ class Server:
             print(f'Server started, listening on IP address {self.src_ip}')
 
             while True:
-                game_mode = GameMode.WAITING_FOR_CLIENTS    # done every start of game
+                self.game_mode = GameMode.WAITING_FOR_CLIENTS    # done every start of game
                 connections = []                    # list of all clients sockets
                 for i in range(MAX_CLIENTS):
                     conn, addr = self.accept_sock.accept()
@@ -56,7 +57,7 @@ class Server:
                     print(conn, addr)               # TODO: for debug, delete
 
                 # done accepting clients - starting game
-                game_mode = GameMode.IN_GAME
+                self.game_mode = GameMode.IN_GAME
                 
                 #TODO: send clients welcome and quick math
                 #TODO: game logic..

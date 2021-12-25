@@ -14,7 +14,15 @@ class Server:
         self.game_mode = None
         self.src_ip = get_src_ip()
         self.accept_sock, self.listen_port = set_accepting_socket(self.src_ip, MAX_CLIENTS)
+        self.condition = threading.Condition()
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        print("EXITING SERVER!!") #TODO: Debug, delete
+        self.game_mode = GameMode.TERMINATE
+        self.accept_sock.close()
 
     def broadcast_game_offer(self):
         '''
@@ -36,41 +44,44 @@ class Server:
                 (0x02).to_bytes(1, byteorder='big') + \
                 self.listen_port.to_bytes(2, byteorder='big') 
 
-        while True:
+
+        while self.game_mode != GameMode.TERMINATE:
             if self.game_mode == GameMode.WAITING_FOR_CLIENTS:
-                udp_sock.sendto(packet, ("255.255.255.255", UDP_PORT))
+                udp_sock.sendto(packet, (BROADCAST_IP, UDP_PORT))
                 print("broadcast")                          # TODO: for debug, delete
-            elif self.game_mode == GameMode.TERMINATE:
-                break
             time.sleep(TIME_TO_SLEEP_BETWEEN_OFFERS)
+
+        udp_sock.close()  
+
+    def accept_clients(self):
+        connections = []                                 # list of all clients sockets
+        for i in range(MAX_CLIENTS):
+            print("waiting for client..")               # TODO: for debug, delete
+            conn, addr = self.accept_sock.accept()       # accept the i'th client
+            connections.append(conn)                     # save the connection in list
+            print("New client: ", conn, addr)               # TODO: for debug, delete
+
+    def play_game(self, connections):
+        self.game_mode = GameMode.IN_GAME
+        
+        #TODO: send clients welcome and quick math
+        #TODO: game logic..
 
 
     def run(self):
         # daemon broadcasting offers as long as game in WAITING_FOR_CLIENTS mode:
         try:
-            threading.Thread(target=self.broadcast_game_offer, daemon=True).start()   
+            threading.Thread(target=self.broadcast_game_offer, daemon=True).start()
             print(f'Server started, listening on IP address {self.src_ip}')
 
             while True:
                 self.game_mode = GameMode.WAITING_FOR_CLIENTS    # done every start of game
-                connections = []                                 # list of all clients sockets
-                for i in range(MAX_CLIENTS):
-                    print("waiting for client..")               # TODO: for debug, delete
-                    conn, addr = self.accept_sock.accept()       # accept the i'th client
-                    connections.append(conn)                     # save the connection in list
-                    print("New client: ", conn, addr)               # TODO: for debug, delete
-
-                    
-
-                # done accepting clients - starting game
-                self.game_mode = GameMode.IN_GAME
-                
-                #TODO: send clients welcome and quick math
-                #TODO: game logic..
+                connections = self.accept_clients()
+                self.play_game(connections)
 
                 # game over, restarting...
                 print('Game over, sending out offer requests...')
-        except Error as err:
+        except Exception as err:
             print(err)
 
 
@@ -86,8 +97,8 @@ class Server:
 
 
 def main():
-    server = Server()
-    server.run()
+    with Server() as server:
+        server.run()
 
 if __name__ == "__main__":
     main()

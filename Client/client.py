@@ -13,10 +13,11 @@ server_socket = None
 def getIpAndPort():
     while True:
         UDPSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        #UDPSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        UDPSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         UDPSocket.bind(('', udpPort))
         print("Client started, listening for offer requests...")
         msgFromServer = UDPSocket.recvfrom(bufferSize)
+        print(msgFromServer)
         serverIp = msgFromServer[1]
         msgFromServer = msgFromServer[0]
         if len(msgFromServer) >= 7:

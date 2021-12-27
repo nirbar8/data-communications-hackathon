@@ -1,6 +1,6 @@
 import socket
 from sshkeyboard import listen_keyboard
-
+import random
 bufferSize = 1024
 udpPort = 13117
 
@@ -38,7 +38,7 @@ def connectByTCP(ipAndPort):
     print("Received offer from " + (ipAndPort[0]) + ", attempting to connect...")
     print(ipAndPort)
     TCPSocket.connect(ipAndPort)
-    TCPSocket.sendall(b'Team \n')
+    TCPSocket.sendall((f'Team {random.randint(100,999)}\n').encode("ascii"))
     global server_socket
     server_socket = TCPSocket
 

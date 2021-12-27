@@ -1,3 +1,5 @@
+from contextlib import closing
+import enum
 from logging import error
 from shutil import Error
 import socket
@@ -14,7 +16,15 @@ class Server:
         self.game_mode = None
         self.src_ip = get_src_ip()
         self.accept_sock, self.listen_port = set_accepting_socket(self.src_ip, MAX_CLIENTS)
+        self.event_listener = threading.Event()
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        print("EXITING SERVER!!") #TODO: Debug, delete
+        self.game_mode = GameMode.TERMINATE
+        self.accept_sock.close()
 
     def broadcast_game_offer(self):
         '''
@@ -36,41 +46,145 @@ class Server:
                 (0x02).to_bytes(1, byteorder='big') + \
                 self.listen_port.to_bytes(2, byteorder='big') 
 
-        while True:
+
+        while self.game_mode != GameMode.TERMINATE:
             if self.game_mode == GameMode.WAITING_FOR_CLIENTS:
-                udp_sock.sendto(packet, ("255.255.255.255", UDP_PORT))
-                print("broadcast")                          # TODO: for debug, delete
-            elif self.game_mode == GameMode.TERMINATE:
-                break
+                udp_sock.sendto(packet, (BROADCAST_IP, UDP_PORT))
+                print("broadcast offer")                          # TODO: for debug, delete
             time.sleep(TIME_TO_SLEEP_BETWEEN_OFFERS)
+
+        udp_sock.close()  
+
+    def handle_client(self, client):
+        while True:
+            next_task = client.messages_from_main.get()
+            if next_task == TERMINATE_THREAD:   
+                client.client_sock.close()
+                break   
+            else:
+                next_task(client)
+
+
+    def accept_client_name(self, client : Client):
+        '''
+        This method should run by the client handler thread
+        '''
+        while True:
+            message : bytes = client.client_sock.recv(BUFFER_SIZE)
+            message = message.decode()
+            if message.endswith('\n'):
+                print(message[:-1])
+                def update_name():
+                    client.client_name = message[:-1]
+                client.messages_to_main.put(update_name)
+                break
+
+    def accept_answer(self, client : Client):
+        '''
+        This method should run by the client handler thread
+        '''
+        while True:
+            message : bytes = client.client_sock.recv(BUFFER_SIZE)
+            message = message.decode()
+            if len(message) == 1:
+                print(f'client {client.client_name} answered {message}')
+                client.messages_to_main.put(message)
+                self.event_listener.set()               # waking the main thread up
+                break
+
+
+
+    def accept_clients(self):
+        self.game_mode = GameMode.WAITING_FOR_CLIENTS    # done every start of game
+        clients = []                                     # list of all clients sockets
+        for _ in range(MAX_CLIENTS):
+            conn, addr = self.accept_sock.accept()   # accept the i'th client
+            client = Client(conn)
+            clients.append(client)             # save the connection in list
+            threading.Thread(target=self.handle_client, args=(client,)).start()
+            client.messages_from_main.put(self.accept_client_name)
+
+        for client in clients:
+            client.messages_to_main.get()()
+
+        return clients
+
+
+    def generate_quick_math_message(self, clients):
+        question, answer = generate_quick_math()
+        message = f'Welcome to Quick Maths.\n'
+        for index, client in enumerate(clients):
+            message += f'Player {index}: {client.client_name}\n'
+        message += '==\n'
+        message += 'Please asnwer the following question as fast as you can:\n'
+        message += f'How much is {question}?\n'
+        return message, answer
+
+    def broadcast_str_to_client(self, clients, msg):
+        print("DEBUG: broadcasting to clients") #TODO: delete
+        print(msg)
+        for client in clients:
+            client.client_sock.sendall(msg.encode("ascii"))
+
+
+
+    def broadcast_draw(self, clients, game_over_msg):
+        game_over_msg += "No one won this game..."
+        self.broadcast_str_to_client(clients, game_over_msg)
+
+    def broadcast_win(self, clients, game_over_msg, client):
+        game_over_msg += f"Congratulations to the winner: {client.client_name}"
+        self.broadcast_str_to_client(clients, game_over_msg)
+
+    def broadcast_lose(self, clients, game_over_msg, client):
+        game_over_msg += f"The player: {client.client_name} has lost this game..."
+        self.broadcast_str_to_client(clients, game_over_msg)
+
+    def get_game_results(self, clients):
+        first_client = None
+        client_answer = None
+        for client in clients:
+            try:
+                client_answer = client.messages_to_main.get(False)      # non-blocking get
+                first_client = client
+                break
+            except queue.Empty:
+                print("queue of client ", client.client_name, " is empty")
+                pass
+        return first_client, client_answer
+
+    def play_game(self, clients):
+        self.game_mode = GameMode.IN_GAME
+        message, correct_answer = self.generate_quick_math_message(clients)
+        self.broadcast_str_to_client(clients, message)
+        for client in clients:
+            client.messages_from_main.put(self.accept_answer)
+        self.event_listener.wait(timeout=TIME_FOR_ANSWER)       # waiting for the client threads to noitify that answer recieved
+        
+        first_client, client_answer = self.get_game_results(clients)
+        game_over_msg = f'Game over!\nThe correct answer was {correct_answer}!\n\n'
+        if first_client == None:                # a draw
+            self.broadcast_draw(clients, game_over_msg)
+        elif client_answer == correct_answer:   # first client won
+            self.broadcast_win(clients, game_over_msg, first_client)
+        else:                                   # first client lost
+            self.broadcast_lose(clients, game_over_msg, first_client)
+
 
 
     def run(self):
-        # daemon broadcasting offers as long as game in WAITING_FOR_CLIENTS mode:
         try:
-            threading.Thread(target=self.broadcast_game_offer, daemon=True).start()   
+            # daemon broadcasting offers as long as game in WAITING_FOR_CLIENTS mode:
+            threading.Thread(target=self.broadcast_game_offer, daemon=True).start()
             print(f'Server started, listening on IP address {self.src_ip}')
 
             while True:
-                self.game_mode = GameMode.WAITING_FOR_CLIENTS    # done every start of game
-                connections = []                                 # list of all clients sockets
-                for i in range(MAX_CLIENTS):
-                    print("waiting for client..")               # TODO: for debug, delete
-                    conn, addr = self.accept_sock.accept()       # accept the i'th client
-                    connections.append(conn)                     # save the connection in list
-                    print("New client: ", conn, addr)               # TODO: for debug, delete
-
-                    
-
-                # done accepting clients - starting game
-                self.game_mode = GameMode.IN_GAME
-                
-                #TODO: send clients welcome and quick math
-                #TODO: game logic..
-
-                # game over, restarting...
+                clients = self.accept_clients()
+                print('starting game...')           # TODO: debug
+                self.play_game(clients)
                 print('Game over, sending out offer requests...')
-        except Error as err:
+
+        except Exception as err:
             print(err)
 
 
@@ -79,6 +193,7 @@ class Server:
 
 # TODO:
 # 1. handle errors - communication exceptions, bad operations with OS (opening sockets)
+#       check validity of socket? (that no client has disconnected)    
 # 2. add game logic, communication with listening threads
 
 
@@ -86,8 +201,8 @@ class Server:
 
 
 def main():
-    server = Server()
-    server.run()
+    with Server() as server:
+        server.run()
 
 if __name__ == "__main__":
     main()

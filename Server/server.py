@@ -1,3 +1,4 @@
+from contextlib import closing
 from logging import error
 from shutil import Error
 import socket
@@ -14,7 +15,7 @@ class Server:
         self.game_mode = None
         self.src_ip = get_src_ip()
         self.accept_sock, self.listen_port = set_accepting_socket(self.src_ip, MAX_CLIENTS)
-        self.condition = threading.Condition()
+        self.event_listener = threading.Event()
 
     def __enter__(self):
         return self
@@ -53,13 +54,45 @@ class Server:
 
         udp_sock.close()  
 
+    def handle_client(self, client):
+        while True:
+            next_task = client.messages_from_main.get()
+            if next_task == TERMINATE_THREAD:   
+                break   
+            else:
+                next_task(client)
+
+
+    def accept_client_name(self, client : Client):
+        '''
+        This method should run by the client handler thread
+        '''
+        while True:
+            message : bytes = client.client_sock.recv(BUFFER_SIZE)
+            message = message.decode()
+            if message.endswith('\n'):
+                print(message[:-1])
+                def update_name():
+                    client.client_name = message[:-1]
+                client.messages_to_main.put(update_name)
+                break
+
+
     def accept_clients(self):
-        connections = []                                 # list of all clients sockets
+        self.game_mode = GameMode.WAITING_FOR_CLIENTS    # done every start of game
+        clients = []                                     # list of all clients sockets
         for i in range(MAX_CLIENTS):
-            print("waiting for client..")               # TODO: for debug, delete
-            conn, addr = self.accept_sock.accept()       # accept the i'th client
-            connections.append(conn)                     # save the connection in list
-            print("New client: ", conn, addr)               # TODO: for debug, delete
+            conn, addr = self.accept_sock.accept()   # accept the i'th client
+            client = Client(conn)
+            clients.append(client)             # save the connection in list
+            threading.Thread(target=self.handle_client, args=(client,)).start()
+            client.messages_from_main.put(self.accept_client_name) # TODO: make sure name sent and add to message_to_main
+
+        for client in clients:
+            client.messages_to_main.get()()
+
+        return clients
+
 
     def play_game(self, connections):
         self.game_mode = GameMode.IN_GAME
@@ -69,18 +102,26 @@ class Server:
 
 
     def run(self):
-        # daemon broadcasting offers as long as game in WAITING_FOR_CLIENTS mode:
         try:
+            # daemon broadcasting offers as long as game in WAITING_FOR_CLIENTS mode:
             threading.Thread(target=self.broadcast_game_offer, daemon=True).start()
             print(f'Server started, listening on IP address {self.src_ip}')
 
             while True:
-                self.game_mode = GameMode.WAITING_FOR_CLIENTS    # done every start of game
-                connections = self.accept_clients()
-                self.play_game(connections)
-
-                # game over, restarting...
+                clients = self.accept_clients()
+                time.sleep(1)
+                print("senity check: the number of threads running", threading.active_count())
+                print("killing threads")
+                for client in clients:
+                    client.messages_from_main.put(TERMINATE_THREAD)
+                print("senity check: the number of threads running", threading.active_count())
+                time.sleep(1)
+                print("senity check: the number of threads running", threading.active_count())
+                print("playing...")
+                time.sleep(5)
+                self.play_game(clients)
                 print('Game over, sending out offer requests...')
+
         except Exception as err:
             print(err)
 
@@ -90,6 +131,7 @@ class Server:
 
 # TODO:
 # 1. handle errors - communication exceptions, bad operations with OS (opening sockets)
+#       check validity of socket? (that no client has disconnected)    
 # 2. add game logic, communication with listening threads
 
 

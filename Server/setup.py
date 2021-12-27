@@ -26,7 +26,9 @@ TIME_TO_SLEEP_BETWEEN_OFFERS = 5    # in seconds
 MAX_CLIENTS = 2                     # server is scalable and can handle more users
 UDP_PORT = 13117                    # for sending udp broadcasts
 SECRET_COOKIE = 0xabcddcba          # opens "offer" message
-BROADCAST_IP = "255.255.255.255"    
+BROADCAST_IP = "255.255.255.255"    # broadcast address
+BUFFER_SIZE = 1 << 10               # buffer for receiving messages
+TERMINATE_THREAD = object()         # flag for thread termination - used in message queue from main
 
 
 def get_src_ip():
@@ -55,3 +57,13 @@ def set_accepting_socket(src_ip, max_clients):
     print(src_ip, src_port)
     sock.listen(max_clients)
     return sock, src_port 
+
+
+
+class Client():
+    def __init__(self, client_sock):
+        self.client_name = None
+        self.client_sock : socket = client_sock
+        self.messages_to_main = Queue()
+        self.messages_from_main = Queue()
+    

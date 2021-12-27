@@ -14,6 +14,7 @@ spamming_teams = ['172.18.0.102', '172.99.0.40', '172.18.0.3', '172.18.0.14', '1
 
 def getIpAndPort():
     while True:
+        print('1')
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as UDPSocket:
             UDPSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
             UDPSocket.bind(('', udpPort))
@@ -41,14 +42,14 @@ def connectByTCP(ipAndPort, TCPSocket):
 
 def main():
     # Initiate tcp connection with server and set the global variable server_socket
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as TCPSocket:
-        connectByTCP(getIpAndPort(), TCPSocket)
-        # Attach the sendMsgs function to the keyboard listener
-        setup.setup(TCPSocket)
-    setup.restore_settings()
-    print('done')
+    while True:
+        ipAndPort = getIpAndPort()
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as TCPSocket:
+            connectByTCP(ipAndPort, TCPSocket)
+            # Attach the sendMsgs function to the keyboard listener
+            setup.setup(TCPSocket)
+        setup.restore_settings()
     # While waiting for the keyboard pressing event - receive messages from the server
-    #receiveMsgs()
 
 if __name__ == "__main__":
     main()

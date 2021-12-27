@@ -8,6 +8,7 @@ import termios
 server_socket = None
 old_settings = None
 stdin_fd = None
+GO_ON = None
 
 # set sys.stdin non-blocking
 def set_input_nonblocking():
@@ -15,34 +16,29 @@ def set_input_nonblocking():
     fcntl.fcntl(sys.stdin, fcntl.F_SETFL, orig_fl | os.O_NONBLOCK)
 
 def from_server(sock, arg2):
-    global GO_ON
     global old_settings
     global stdin_fd
+    global GO_ON
     termios.tcsetattr(stdin_fd, termios.TCSADRAIN, old_settings)
     data = sock.recv(1024)
     if not data:
         GO_ON = False
-    print(data.decode("ascii"))
+    else:
+        print(data.decode("ascii"))
     tty.setraw(stdin_fd)
-
-def quit():
-    global GO_ON
-    print('Exiting...')
-    GO_ON = False
 
 
 def from_keyboard(keyboard, arg2):
     global server_socket
-    if GO_ON:
-        ch = sys.stdin.read(1)
-        sys.stdin.flush()
-        server_socket.send(ch.encode())
+    ch = sys.stdin.read(1)
+    sys.stdin.flush()
+    server_socket.send(ch.encode())
 
 def setup(server_sock):
-    global GO_ON
     global server_socket
     global old_settings
     global stdin_fd
+    global GO_ON
 
     server_socket = server_sock
     GO_ON = True

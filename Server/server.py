@@ -169,7 +169,8 @@ class Server:
             self.broadcast_win(clients, game_over_msg, first_client)
         else:                                   # first client lost
             self.broadcast_lose(clients, game_over_msg, first_client)
-
+        for client in clients:
+            client.messages_from_main.put(TERMINATE_THREAD)
 
 
     def run(self):

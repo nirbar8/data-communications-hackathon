@@ -1,6 +1,6 @@
 from scapy.all import *
 from enum import Enum, auto
-
+import queue
 
 class GameMode(Enum):
     WAITING_FOR_CLIENTS = auto()
@@ -23,6 +23,7 @@ PROG_MODE = ProgramMode.DEBUG       # For Testing, switch to ProgramMode.RELEASE
 
 
 TIME_TO_SLEEP_BETWEEN_OFFERS = 5    # in seconds
+TIME_FOR_ANSWER = 10                # in seconds
 MAX_CLIENTS = 2                     # server is scalable and can handle more users
 UDP_PORT = 13117                    # for sending udp broadcasts
 SECRET_COOKIE = 0xabcddcba          # opens "offer" message
@@ -59,11 +60,15 @@ def set_accepting_socket(src_ip, max_clients):
     return sock, src_port 
 
 
+def generate_quick_math():
+    # TODO:
+    return "2+2", "4"
+
 
 class Client():
     def __init__(self, client_sock):
         self.client_name = None
         self.client_sock : socket = client_sock
-        self.messages_to_main = Queue()
-        self.messages_from_main = Queue()
+        self.messages_to_main = queue.Queue()
+        self.messages_from_main = queue.Queue()
     

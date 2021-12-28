@@ -23,7 +23,7 @@ def getIpAndPort():
             # TODO: delete
             while (msgFromServer[1][0] != '172.1.0.66'):
                msgFromServer = UDPSocket.recvfrom(bufferSize)
-            print(msgFromServer)
+            #print(msgFromServer)
                 
             serverIp = msgFromServer[1][0]
             msgFromServer = msgFromServer[0]
@@ -35,7 +35,7 @@ def getIpAndPort():
 
 def connectByTCP(ipAndPort, TCPSocket):
     print("Received offer from " + (ipAndPort[0]) + ", attempting to connect...")
-    print(ipAndPort)
+    #print(ipAndPort)
     TCPSocket.connect(ipAndPort)
     TCPSocket.sendall((f'Team {random.randint(100,999)}\n').encode("ascii"))
 
@@ -48,6 +48,7 @@ def main():
             # Attach the sendMsgs function to the keyboard listener
             setup.setup(TCPSocket)
         setup.restore_settings()
+        print('Server disconnected, listening for offer requests...')
     # While waiting for the keyboard pressing event - receive messages from the server
 
 if __name__ == "__main__":

@@ -22,7 +22,7 @@ class ProgramMode(Enum):
 PROG_MODE = ProgramMode.DEBUG       # For Testing, switch to ProgramMode.RELEASE 
 
 
-TIME_TO_SLEEP_BETWEEN_OFFERS = 5    # in seconds
+TIME_TO_SLEEP_BETWEEN_OFFERS = 1    # in seconds
 TIME_FOR_ANSWER = 10                # in seconds
 MAX_CLIENTS = 2                     # server is scalable and can handle more users
 UDP_PORT = 13117                    # for sending udp broadcasts

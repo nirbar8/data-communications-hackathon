@@ -47,12 +47,12 @@ class Server:
             while True:
                 if self.game_mode == GameMode.WAITING_FOR_CLIENTS:
                     udp_sock.sendto(packet, (BROADCAST_IP, UDP_PORT))
-                    print("broadcast offer")                          # TODO: for debug, delete
+                    #print("broadcast offer")                          # TODO: for debug, delete
 
-                for i in range(5):
-                    print(f"active threads: {threading.active_count()}")
-                    time.sleep(1)
-                # time.sleep(TIME_TO_SLEEP_BETWEEN_OFFERS)
+                '''for i in range(5):
+                    #print(f"active threads: {threading.active_count()}")
+                    time.sleep(1)'''
+                time.sleep(TIME_TO_SLEEP_BETWEEN_OFFERS)
 
 
     def handle_client(self, client):
@@ -82,16 +82,20 @@ class Server:
         '''
         This method should run by the client handler thread
         '''
-        client.client_sock.settimeout(TIME_FOR_ANSWER)   
         try: 
+            client.client_sock.settimeout(TIME_FOR_ANSWER) 
             message : bytes = client.client_sock.recv(BUFFER_SIZE)
+            if not message:
+                pass
             message = message.decode()
             if len(message) == 1:
                 print(f'client {client.client_name} answered {message}')
                 client.messages_to_main.put(message)
                 self.event_listener.set()               # waking the main thread up
+        except socket.error:
+            pass
         except OSError:
-            print(f"DEBUG: OSError from thread {threading.current_thread().name}. Bye...")
+            #print(f"DEBUG: OSError from thread {threading.current_thread().name}. Bye...")
             pass
 
 
@@ -123,7 +127,7 @@ class Server:
         return message, answer
 
     def broadcast_str_to_client(self, clients, msg):
-        print("DEBUG: broadcasting to clients") #TODO: delete
+        #print("DEBUG: broadcasting to clients") #TODO: delete
         print(msg)
         for client in clients:
             client.client_sock.sendall(msg.encode("ascii"))
@@ -170,6 +174,7 @@ class Server:
         
         for client in clients:
             client.messages_from_main.put(TERMINATE_THREAD)
+            client.client_sock.shutdown(1)
             client.client_sock.close()
 
 
@@ -184,6 +189,7 @@ class Server:
                 print('starting game...')           # TODO: debug
                 self.play_game(clients)
                 print('Game over, sending out offer requests...')
+                self.event_listener = threading.Event()
 
         except Exception as err:
             print(err)

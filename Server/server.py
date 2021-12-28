@@ -1,7 +1,5 @@
 from contextlib import closing
 import enum
-from logging import error
-from shutil import Error
 import socket
 import os
 import threading
@@ -38,28 +36,29 @@ class Server:
         you may change the architecture so the thread will not be daemon (called only if needed)
         '''
         assert threading.currentThread().isDaemon() 
-        udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        udp_sock.bind((self.src_ip, 0))
-        packet = SECRET_COOKIE.to_bytes(4, byteorder='big') + \
-                (0x02).to_bytes(1, byteorder='big') + \
-                self.listen_port.to_bytes(2, byteorder='big') 
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as udp_sock:
+            udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            udp_sock.bind((self.src_ip, 0))
+            packet = SECRET_COOKIE.to_bytes(4, byteorder='big') + \
+                    (0x02).to_bytes(1, byteorder='big') + \
+                    self.listen_port.to_bytes(2, byteorder='big') 
 
+            while True:
+                if self.game_mode == GameMode.WAITING_FOR_CLIENTS:
+                    udp_sock.sendto(packet, (BROADCAST_IP, UDP_PORT))
+                    print("broadcast offer")                          # TODO: for debug, delete
 
-        while self.game_mode != GameMode.TERMINATE:
-            if self.game_mode == GameMode.WAITING_FOR_CLIENTS:
-                udp_sock.sendto(packet, (BROADCAST_IP, UDP_PORT))
-                print("broadcast offer")                          # TODO: for debug, delete
-            time.sleep(TIME_TO_SLEEP_BETWEEN_OFFERS)
+                for i in range(5):
+                    print(f"active threads: {threading.active_count()}")
+                    time.sleep(1)
+                # time.sleep(TIME_TO_SLEEP_BETWEEN_OFFERS)
 
-        udp_sock.close()  
 
     def handle_client(self, client):
         while True:
             next_task = client.messages_from_main.get()
             if next_task == TERMINATE_THREAD:   
-                client.client_sock.close()
                 break   
             else:
                 next_task(client)
@@ -83,14 +82,17 @@ class Server:
         '''
         This method should run by the client handler thread
         '''
-        while True:
+        client.client_sock.settimeout(TIME_FOR_ANSWER)   
+        try: 
             message : bytes = client.client_sock.recv(BUFFER_SIZE)
             message = message.decode()
             if len(message) == 1:
                 print(f'client {client.client_name} answered {message}')
                 client.messages_to_main.put(message)
                 self.event_listener.set()               # waking the main thread up
-                break
+        except OSError:
+            print(f"DEBUG: OSError from thread {threading.current_thread().name}. Bye...")
+            pass
 
 
 
@@ -116,7 +118,7 @@ class Server:
         for index, client in enumerate(clients):
             message += f'Player {index}: {client.client_name}\n'
         message += '==\n'
-        message += 'Please asnwer the following question as fast as you can:\n'
+        message += 'Please answer the following question as fast as you can:\n'
         message += f'How much is {question}?\n'
         return message, answer
 
@@ -127,15 +129,12 @@ class Server:
             client.client_sock.sendall(msg.encode("ascii"))
 
 
-
     def broadcast_draw(self, clients, game_over_msg):
         game_over_msg += "No one won this game..."
         self.broadcast_str_to_client(clients, game_over_msg)
-
     def broadcast_win(self, clients, game_over_msg, client):
         game_over_msg += f"Congratulations to the winner: {client.client_name}"
         self.broadcast_str_to_client(clients, game_over_msg)
-
     def broadcast_lose(self, clients, game_over_msg, client):
         game_over_msg += f"The player: {client.client_name} has lost this game..."
         self.broadcast_str_to_client(clients, game_over_msg)
@@ -145,11 +144,10 @@ class Server:
         client_answer = None
         for client in clients:
             try:
-                client_answer = client.messages_to_main.get(False)      # non-blocking get
+                client_answer = client.messages_to_main.get(False)      # non-blocking get - returns answer when this is the thread sent the notification
                 first_client = client
                 break
-            except queue.Empty:
-                print("queue of client ", client.client_name, " is empty")
+            except queue.Empty:                                         # not the client that notify the main thread because of answer
                 pass
         return first_client, client_answer
 
@@ -169,8 +167,10 @@ class Server:
             self.broadcast_win(clients, game_over_msg, first_client)
         else:                                   # first client lost
             self.broadcast_lose(clients, game_over_msg, first_client)
+        
         for client in clients:
             client.messages_from_main.put(TERMINATE_THREAD)
+            client.client_sock.close()
 
 
     def run(self):

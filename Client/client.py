@@ -14,7 +14,6 @@ spamming_teams = ['172.18.0.102', '172.99.0.40', '172.18.0.3', '172.18.0.14', '1
 
 def getIpAndPort():
     while True:
-        print('1')
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as UDPSocket:
             UDPSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
             UDPSocket.bind(('', udpPort))
@@ -23,7 +22,7 @@ def getIpAndPort():
             msgFromServer = UDPSocket.recvfrom(bufferSize)
             # TODO: delete
             while (msgFromServer[1][0] != '172.1.0.66'):
-                msgFromServer = UDPSocket.recvfrom(bufferSize)
+               msgFromServer = UDPSocket.recvfrom(bufferSize)
             print(msgFromServer)
                 
             serverIp = msgFromServer[1][0]

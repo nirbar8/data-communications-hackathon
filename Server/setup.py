@@ -20,7 +20,7 @@ class ProgramMode(Enum):
 *********                     **********
 ****************************************
 '''
-PROG_MODE = ProgramMode.DEBUG       # For Testing, switch to ProgramMode.RELEASE 
+PROG_MODE = ProgramMode.RELEASE       # For Testing, switch to ProgramMode.RELEASE 
 
 
 TIME_TO_SLEEP_BETWEEN_OFFERS = 1    # in seconds

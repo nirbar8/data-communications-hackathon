@@ -4,7 +4,7 @@ import random
 import setup
 
 bufferSize = 1024
-udpPort = 13117
+udpPort = 13118 #TODO: change 8 to 7
 
 """
 Listen for udp broadcasts and return the required information for the TCP connections
@@ -21,17 +21,20 @@ def getIpAndPort():
             
             msgFromServer = UDPSocket.recvfrom(bufferSize)
             # TODO: delete
-            while (msgFromServer[1][0] != '172.1.0.66'):
-               msgFromServer = UDPSocket.recvfrom(bufferSize)
+            # while (msgFromServer[1][0] != '172.1.0.61'):
+                # msgFromServer = UDPSocket.recvfrom(bufferSize)
             #print(msgFromServer)
                 
             serverIp = msgFromServer[1][0]
             msgFromServer = msgFromServer[0]
+            print(serverIp, msgFromServer)
             if len(msgFromServer) >= 7:
                 if int.from_bytes(msgFromServer[0:4], byteorder='big', signed=False) == 0xabcddcba:
                     if msgFromServer[4] == 2:
-                        serverPort = int.from_bytes(msgFromServer[5:7], byteorder='big', signed=False)
+                        serverPort = int.from_bytes(msgFromServer[5:7], byteorder='little', signed=False)
                     return serverIp, serverPort
+                else:   #TODO: delete
+                    print(int.from_bytes(msgFromServer[0:4], byteorder='big', signed=False))
 
 def connectByTCP(ipAndPort, TCPSocket):
     print("Received offer from " + (ipAndPort[0]) + ", attempting to connect...")
@@ -41,15 +44,19 @@ def connectByTCP(ipAndPort, TCPSocket):
 
 def main():
     # Initiate tcp connection with server and set the global variable server_socket
-    while True:
-        ipAndPort = getIpAndPort()
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as TCPSocket:
-            connectByTCP(ipAndPort, TCPSocket)
-            # Attach the sendMsgs function to the keyboard listener
-            setup.setup(TCPSocket)
-        setup.restore_settings()
-        print('Server disconnected, listening for offer requests...')
-    # While waiting for the keyboard pressing event - receive messages from the server
+    try:
+        while True:
+            ipAndPort = getIpAndPort()
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as TCPSocket:
+                connectByTCP(ipAndPort, TCPSocket)
+                # Attach the sendMsgs function to the keyboard listener
+                setup.setup(TCPSocket)
+            setup.restore_settings()
+            print('Server disconnected, listening for offer requests...')
+        # While waiting for the keyboard pressing event - receive messages from the server
+    except KeyboardInterrupt:
+        print("\nExiting client...")
+
 
 if __name__ == "__main__":
     main()

@@ -2,6 +2,7 @@ from contextlib import closing
 import enum
 import socket
 import os
+import sys
 import threading
 from setup import *
 from time import sleep
@@ -20,7 +21,6 @@ class Server:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        print("EXITING SERVER!!") #TODO: Debug, delete
         self.game_mode = GameMode.TERMINATE
         self.accept_sock.close()
 
@@ -42,16 +42,16 @@ class Server:
             udp_sock.bind((self.src_ip, 0))
             packet = SECRET_COOKIE.to_bytes(4, byteorder='big') + \
                     (0x02).to_bytes(1, byteorder='big') + \
-                    self.listen_port.to_bytes(2, byteorder='big') 
+                    self.listen_port.to_bytes(2, byteorder='little') 
 
             while True:
                 if self.game_mode == GameMode.WAITING_FOR_CLIENTS:
                     udp_sock.sendto(packet, (BROADCAST_IP, UDP_PORT))
-                    #print("broadcast offer")                          # TODO: for debug, delete
+                    print("DEBUG: broadcast offer sent")                          # TODO: for debug, delete
 
-                '''for i in range(5):
-                    #print(f"active threads: {threading.active_count()}")
-                    time.sleep(1)'''
+                for i in range(2):
+                    print(f"DEBUG: active threads {threading.active_count()}")
+                    time.sleep(1)
                 time.sleep(TIME_TO_SLEEP_BETWEEN_OFFERS)
 
 
@@ -84,12 +84,13 @@ class Server:
         '''
         try: 
             client.client_sock.settimeout(TIME_FOR_ANSWER) 
+            print(f'DEBUG: set timeout for client {client.client_name} and wait for answer')
             message : bytes = client.client_sock.recv(BUFFER_SIZE)
             if not message:
                 pass
             message = message.decode()
             if len(message) == 1:
-                print(f'client {client.client_name} answered {message}')
+                print(f'DEBUG: client {client.client_name} answered {message}')
                 client.messages_to_main.put(message)
                 self.event_listener.set()               # waking the main thread up
         except socket.error:
@@ -157,6 +158,7 @@ class Server:
 
     def play_game(self, clients):
         self.game_mode = GameMode.IN_GAME
+        time.sleep(TIME_BEFORE_GAME)
         message, correct_answer = self.generate_quick_math_message(clients)
         self.broadcast_str_to_client(clients, message)
         for client in clients:
@@ -174,12 +176,11 @@ class Server:
         
         for client in clients:
             client.messages_from_main.put(TERMINATE_THREAD)
-            client.client_sock.shutdown(1)
             client.client_sock.close()
 
 
     def run(self):
-        try:
+        # try:
             # daemon broadcasting offers as long as game in WAITING_FOR_CLIENTS mode:
             threading.Thread(target=self.broadcast_game_offer, daemon=True).start()
             print(f'Server started, listening on IP address {self.src_ip}')
@@ -191,8 +192,8 @@ class Server:
                 print('Game over, sending out offer requests...')
                 self.event_listener = threading.Event()
 
-        except Exception as err:
-            print(err)
+        # except Exception as err:
+        #     print(err)
 
 
 
@@ -209,7 +210,12 @@ class Server:
 
 def main():
     with Server() as server:
-        server.run()
+        try:
+            server.run()
+        except KeyboardInterrupt:
+            print("\nExiting server...")
+            os._exit(0)
+
 
 if __name__ == "__main__":
     main()

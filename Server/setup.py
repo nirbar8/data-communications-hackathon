@@ -57,7 +57,7 @@ def set_accepting_socket(src_ip, max_clients):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind((src_ip, 0))  #TODO: os.uname()[1]
     _, src_port = sock.getsockname()
-    print("DEBUG: new connection - ", src_ip, src_port)
+    # print("DEBUG: new connection - ", src_ip, src_port)
     sock.listen(max_clients)
     return sock, src_port 
 

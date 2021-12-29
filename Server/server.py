@@ -40,17 +40,17 @@ class Server:
             udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
             udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             udp_sock.bind((self.src_ip, 0))
-            packet = SECRET_COOKIE.to_bytes(4, byteorder='big') + \
+            packet = SECRET_COOKIE.to_bytes(4, byteorder='little') + \
                     (0x02).to_bytes(1, byteorder='big') + \
                     self.listen_port.to_bytes(2, byteorder='little') 
 
             while True:
                 if self.game_mode == GameMode.WAITING_FOR_CLIENTS:
                     udp_sock.sendto(packet, (BROADCAST_IP, UDP_PORT))
-                    print("DEBUG: broadcast offer sent")                          # TODO: for debug, delete
+                    # print("DEBUG: broadcast offer sent")                          # TODO: for debug, delete
 
                 for i in range(2):
-                    print(f"DEBUG: active threads {threading.active_count()}")
+                    # print(f"DEBUG: active threads {threading.active_count()}")
                     time.sleep(1)
                 time.sleep(TIME_TO_SLEEP_BETWEEN_OFFERS)
 
@@ -84,13 +84,13 @@ class Server:
         '''
         try: 
             client.client_sock.settimeout(TIME_FOR_ANSWER) 
-            print(f'DEBUG: set timeout for client {client.client_name} and wait for answer')
+            # print(f'DEBUG: set timeout for client {client.client_name} and wait for answer')
             message : bytes = client.client_sock.recv(BUFFER_SIZE)
             if not message:
                 pass
             message = message.decode()
             if len(message) == 1:
-                print(f'DEBUG: client {client.client_name} answered {message}')
+                # print(f'DEBUG: client {client.cslient_name} answered {message}')
                 client.messages_to_main.put(message)
                 self.event_listener.set()               # waking the main thread up
         except socket.error:
@@ -135,13 +135,13 @@ class Server:
 
 
     def broadcast_draw(self, clients, game_over_msg):
-        game_over_msg += "No one won this game..."
+        game_over_msg += "No one won this game...\n\n"
         self.broadcast_str_to_client(clients, game_over_msg)
     def broadcast_win(self, clients, game_over_msg, client):
-        game_over_msg += f"Congratulations to the winner: {client.client_name}"
+        game_over_msg += f"Congratulations to the winner: {client.client_name}\n\n"
         self.broadcast_str_to_client(clients, game_over_msg)
     def broadcast_lose(self, clients, game_over_msg, client):
-        game_over_msg += f"The player: {client.client_name} has lost this game..."
+        game_over_msg += f"The player: {client.client_name} has lost this game...\n\n"
         self.broadcast_str_to_client(clients, game_over_msg)
 
     def get_game_results(self, clients):
@@ -187,26 +187,13 @@ class Server:
 
             while True:
                 clients = self.accept_clients()
-                print('starting game...')           # TODO: debug
+                # print('starting game...')           # TODO: debug
                 self.play_game(clients)
                 print('Game over, sending out offer requests...')
                 self.event_listener = threading.Event()
 
         # except Exception as err:
         #     print(err)
-
-
-
-
-
-# TODO:
-# 1. handle errors - communication exceptions, bad operations with OS (opening sockets)
-#       check validity of socket? (that no client has disconnected)    
-# 2. add game logic, communication with listening threads
-
-
-
-
 
 def main():
     with Server() as server:

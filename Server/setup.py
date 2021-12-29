@@ -29,7 +29,7 @@ TIME_BEFORE_GAME = 10               # in seconds
 MAX_CLIENTS = 2                     # server is scalable and can handle more users
 UDP_PORT = 13117                    # for sending udp broadcasts
 SECRET_COOKIE = 0xabcddcba          # opens "offer" message
-BROADCAST_IP = "172.1.255.255"    # broadcast address TODO check
+BROADCAST_IP = "172.99.255.255"    # broadcast address TODO check
 BUFFER_SIZE = 1 << 10               # buffer for receiving messages
 TERMINATE_THREAD = object()         # flag for thread termination - used in message queue from main
 
@@ -78,4 +78,3 @@ class Client():
         self.client_sock : socket = client_sock
         self.messages_to_main = queue.Queue()
         self.messages_from_main = queue.Queue()
-    
